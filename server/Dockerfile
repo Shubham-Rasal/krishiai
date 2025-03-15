@@ -11,6 +11,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Create models directory
+RUN mkdir -p /app/models
+
+# Copy model files
+COPY models/ /app/models/
+
 # Copy the rest of the application
 COPY . .
 
@@ -20,6 +26,7 @@ EXPOSE 5000
 # Define environment variable
 ENV FLASK_APP=run.py
 ENV FLASK_ENV=production
+ENV MODEL_PATH=/app/models/best_ResNet-50.pth
 
 # Run the application
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "run:app"] 

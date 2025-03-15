@@ -9,12 +9,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy requirements first to leverage Docker cache
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Python dependencies and verify gunicorn is installed
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install gunicorn && \
+    which gunicorn
 
 # Create models directory
 RUN mkdir -p /app/models
 
-# Copy model files
+# Copy model files (if they exist)
 COPY models/ /app/models/
 
 # Copy the rest of the application
@@ -28,5 +32,5 @@ ENV FLASK_APP=run.py
 ENV FLASK_ENV=production
 ENV MODEL_PATH=/app/models/best_ResNet-50.pth
 
-# Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "run:app"] 
+# Run the application with explicit path to gunicorn
+CMD ["python", "-m", "gunicorn", "--bind", "0.0.0.0:5000", "run:app"]

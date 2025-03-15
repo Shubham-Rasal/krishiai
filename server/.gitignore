@@ -1,6 +1,6 @@
 .env
 .venv
-models
+*.pth
 __pycache__/
 *.py[cod]
 *$py.class

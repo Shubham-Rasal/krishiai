@@ -7,3 +7,4 @@ torch==2.4.0
 torchvision
 gunicorn==20.1.0
 numpy==1.26.0
+requests 

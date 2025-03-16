@@ -3,6 +3,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from PIL import Image
 from dotenv import load_dotenv
+import requests
+import tempfile
 
 # Load environment variables
 load_dotenv()
@@ -12,7 +14,7 @@ CORS(app)  # Enable CORS for all routes
 
 # Configuration
 SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-key-please-change'
-MODEL_PATH = os.environ.get('MODEL_PATH') or os.path.join(os.path.dirname(__file__), 'models/best_ResNet-50.pth')
+MODEL_URL = "https://n8xskk8t0o.ufs.sh/f/9lg7ZYvhJ4T6BVeUMkXWm7GVrihD9LWYgqySNKbEHMzpnteo"
 
 # Try to import PyTorch
 try:
@@ -44,13 +46,31 @@ try:
             model = resnet50(weights=None)
             model.fc = nn.Linear(model.fc.in_features, len(self.CLASS_LABELS))
             
-            # Load trained weights
-            state_dict = torch.load(MODEL_PATH, map_location=self.device)
-            model.load_state_dict(state_dict)
-            model.to(self.device)
-            model.eval()
+            # Download model weights from URL
+            print("Downloading model weights...")
+            response = requests.get(MODEL_URL, stream=True)
+            if response.status_code != 200:
+                raise Exception(f"Failed to download model: HTTP {response.status_code}")
             
-            return model
+            # Save to temporary file
+            with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        tmp_file.write(chunk)
+                tmp_path = tmp_file.name
+            
+            try:
+                # Load trained weights
+                state_dict = torch.load(tmp_path, map_location=self.device)
+                model.load_state_dict(state_dict)
+                model.to(self.device)
+                model.eval()
+                print("Model loaded successfully")
+                return model
+            finally:
+                # Clean up temporary file
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
 
         def _get_transforms(self):
             return transforms.Compose([

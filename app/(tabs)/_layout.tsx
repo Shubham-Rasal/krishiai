@@ -76,6 +76,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="conversations"
+        options={{
+          title: 'History',
+          tabBarIcon: ({ color, focused }) => <TabBarIcon name="time-outline" color={color} focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
@@ -106,7 +113,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   scanButton: {
-    top: -20,
+    top: 0,
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -1,14 +1,69 @@
 import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
+import { getConversations, Conversation } from '@/utils/conversations';
+import { format } from 'date-fns';
 
 export default function HomeScreen() {
   const { user } = useUser();
   const [inputText, setInputText] = useState('');
+  const [recentConversations, setRecentConversations] = useState<Conversation[]>([]);
   const router = useRouter();
+
+  useEffect(() => {
+    // Load saved conversations when component mounts
+    loadRecentConversations();
+  }, []);
+
+  const loadRecentConversations = async () => {
+    try {
+      const conversations = await getConversations();
+      // Sort by updatedAt date, newest first
+      const sortedConversations = conversations.sort((a, b) => 
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+      // Get only the most recent 3 conversations
+      setRecentConversations(sortedConversations.slice(0, 3));
+    } catch (error) {
+      console.error('Error loading recent conversations:', error);
+    }
+  };
+
+  const formatTimeAgo = (date: Date) => {
+    try {
+      const now = new Date();
+      const conversationDate = new Date(date);
+      const diffInSeconds = Math.floor((now.getTime() - conversationDate.getTime()) / 1000);
+      
+      if (diffInSeconds < 60) {
+        return 'Just now';
+      } else if (diffInSeconds < 3600) {
+        const minutes = Math.floor(diffInSeconds / 60);
+        return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+      } else if (diffInSeconds < 86400) {
+        const hours = Math.floor(diffInSeconds / 3600);
+        return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+      } else if (diffInSeconds < 604800) {
+        const days = Math.floor(diffInSeconds / 86400);
+        return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+      } else {
+        return format(conversationDate, 'MMM d, yyyy');
+      }
+    } catch (error) {
+      return 'Invalid date';
+    }
+  };
+
+  // Navigate to conversation details
+  const viewConversation = (conversation: Conversation) => {
+    router.push({
+      pathname: '/(tabs)/conversations',
+      params: { id: conversation.id }
+    });
+  };
 
   const handleSend = () => {
     if (inputText.trim()) {
@@ -48,7 +103,7 @@ export default function HomeScreen() {
           <View style={styles.quickAccessGrid}>
             <Pressable 
               style={styles.quickAccessItem}
-              onPress={() => router.push('/voice')}
+              onPress={() => router.push('/(tabs)/voice')}
             >
               <View style={[styles.iconContainer, { backgroundColor: '#E8F5E9' }]}>
                 <Ionicons name="mic-outline" size={24} color="#2E7D32" />
@@ -59,7 +114,7 @@ export default function HomeScreen() {
             
             <Pressable 
               style={styles.quickAccessItem}
-              onPress={() => router.push('/pesticide-scan')}
+              onPress={() => router.push('/(tabs)/pesticide-scan')}
             >
               <View style={[styles.iconContainer, { backgroundColor: '#E3F2FD' }]}>
                 <Ionicons name="scan-outline" size={24} color="#1565C0" />
@@ -68,11 +123,9 @@ export default function HomeScreen() {
               <Text style={styles.itemDescription}>Analyze pesticides</Text>
             </Pressable>
 
-           
-
             <Pressable 
               style={styles.quickAccessItem}
-              onPress={() => router.push('/settings')}
+              onPress={() => router.push('/(tabs)/settings')}
             >
               <View style={[styles.iconContainer, { backgroundColor: '#F3E5F5' }]}>
                 <Ionicons name="settings-outline" size={24} color="#6A1B9A" />
@@ -80,50 +133,63 @@ export default function HomeScreen() {
               <Text style={styles.itemTitle}>Settings</Text>
               <Text style={styles.itemDescription}>Update preferences</Text>
             </Pressable>
+
+            <Pressable 
+              style={styles.quickAccessItem}
+              onPress={() => router.push('/(tabs)/conversations')}
+            >
+              <View style={[styles.iconContainer, { backgroundColor: '#FFF3E0' }]}>
+                <Ionicons name="time-outline" size={24} color="#E65100" />
+              </View>
+              <Text style={styles.itemTitle}>History</Text>
+              <Text style={styles.itemDescription}>View past conversations</Text>
+            </Pressable>
           </View>
         </View>
 
         <View style={styles.recentPrompts}>
-          <Text style={styles.sectionTitle}>Recent Prompts</Text>
+          <Text style={styles.sectionTitle}>Recent Conversations</Text>
           <View style={styles.conversationList}>
-            <Pressable 
-              style={styles.conversationItem}
-              onPress={() => router.push('/voice')}
-            >
-              <View style={styles.conversationIcon}>
-                <Ionicons name="chatbubble-outline" size={20} color="#666" />
+            {recentConversations.length === 0 ? (
+              <View style={styles.emptyConversations}>
+                <Text style={styles.emptyText}>No recent conversations</Text>
+                <Pressable
+                  style={styles.startChatButton}
+                  onPress={() => router.push('/(tabs)/voice')}
+                >
+                  <Text style={styles.startChatText}>Start a chat</Text>
+                </Pressable>
               </View>
-              <View style={styles.conversationContent}>
-                <Text style={styles.conversationTitle}>When should I harvest wheat?</Text>
-                <Text style={styles.conversationTime}>2 hours ago</Text>
-              </View>
-            </Pressable>
-
-            <Pressable 
-              style={styles.conversationItem}
-              onPress={() => router.push('/crop-scan')}
-            >
-              <View style={styles.conversationIcon}>
-                <Ionicons name="scan-outline" size={20} color="#666" />
-              </View>
-              <View style={styles.conversationContent}>
-                <Text style={styles.conversationTitle}>Analyzed crop disease in wheat field</Text>
-                <Text style={styles.conversationTime}>Yesterday</Text>
-              </View>
-            </Pressable>
-
-            <Pressable 
-              style={styles.conversationItem}
-              onPress={() => router.push('/voice')}
-            >
-              <View style={styles.conversationIcon}>
-                <Ionicons name="mic-outline" size={20} color="#666" />
-              </View>
-              <View style={styles.conversationContent}>
-                <Text style={styles.conversationTitle}>Voice: Weather forecast for next week</Text>
-                <Text style={styles.conversationTime}>2 days ago</Text>
-              </View>
-            </Pressable>
+            ) : (
+              recentConversations.map((conversation) => (
+                <Pressable 
+                  key={conversation.id}
+                  style={styles.conversationItem}
+                  onPress={() => viewConversation(conversation)}
+                >
+                  <View style={styles.conversationIcon}>
+                    <Ionicons name="chatbubble-outline" size={20} color="#666" />
+                  </View>
+                  <View style={styles.conversationContent}>
+                    <Text style={styles.conversationTitle} numberOfLines={1}>
+                      {conversation.title}
+                    </Text>
+                    <Text style={styles.conversationTime}>
+                      {formatTimeAgo(conversation.updatedAt)}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))
+            )}
+            {recentConversations.length > 0 && (
+              <Pressable
+                style={styles.viewAllButton}
+                onPress={() => router.push('/(tabs)/conversations')}
+              >
+                <Text style={styles.viewAllText}>View all conversations</Text>
+                <Ionicons name="chevron-forward" size={16} color="#2E7D32" />
+              </Pressable>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -248,6 +314,7 @@ const styles = StyleSheet.create({
   },
   recentPrompts: {
     padding: 16,
+    marginBottom: 20,
   },
   conversationList: {
     backgroundColor: '#fff',
@@ -281,5 +348,38 @@ const styles = StyleSheet.create({
   conversationTime: {
     fontSize: 12,
     color: '#666',
+  },
+  emptyConversations: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+  },
+  startChatButton: {
+    backgroundColor: '#E8F5E9',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  startChatText: {
+    color: '#2E7D32',
+    fontWeight: '500',
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  viewAllText: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '500',
+    marginRight: 4,
   },
 }); 

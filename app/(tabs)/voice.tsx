@@ -23,9 +23,31 @@ import {
 import { supabase } from '@/utils/supabase';
 import { clientTools, clientToolsSchema } from '@/utils/tools';
 import { getPreferences } from '@/utils/preferences';
+import { 
+  ConversationMessage, 
+  Conversation, 
+  saveConversation, 
+  generateConversationId 
+} from '@/utils/conversations';
+import { useRouter } from 'expo-router';
 // import voiceWaveAnimation from '@/assets/animations/voice-wave.json';
 
+// Define connection stage type
+type ConnectionStage = 
+  | 'starting' 
+  | 'requesting' 
+  | 'audio' 
+  | 'connection'
+  | 'microphone'
+  | 'datachannel'
+  | 'negotiating'
+  | 'connecting'
+  | 'ready'
+  | 'error'
+  | '';
+
 export default function VoiceScreen() {
+  const router = useRouter();
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
   const [transcript, setTranscript] = useState('');
@@ -43,9 +65,18 @@ export default function VoiceScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [responseText, setResponseText] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
+  
+  // Add connection stage state with proper typing
+  const [connectionStage, setConnectionStage] = useState<ConnectionStage>('');
+  const [statusMessage, setStatusMessage] = useState<string>('');
 
   // Add new state for preferences
   const [preferences, setPreferences] = useState<any>(null);
+  
+  // Add conversation state
+  const [conversationId, setConversationId] = useState<string>('');
+  const [chatHistory, setChatHistory] = useState<ConversationMessage[]>([]);
+  const [conversationSaved, setConversationSaved] = useState(false);
   
   // Load preferences when component mounts
   useEffect(() => {
@@ -60,14 +91,32 @@ export default function VoiceScreen() {
   // Start realtime session
   const startSession = async () => {
     try {
+      // Generate a new conversation ID at the start of each session
+      const newConversationId = generateConversationId();
+      setConversationId(newConversationId);
+      setChatHistory([]);
+      setConversationSaved(false);
+      
+      // Show connecting status
+      setConnectionStage('requesting');
+      setStatusMessage('Requesting secure token...');
+      
       const { data, error } = await supabase.functions.invoke('token');
       console.log('data', data);
       console.log('error', error);
       if (error) throw error;
       const EPHEMERAL_KEY = data.client_secret.value;
       console.log('EPHEMERAL_KEY', EPHEMERAL_KEY);
+      
+      // Update status
+      setConnectionStage('audio');
+      setStatusMessage('Setting up audio...');
 
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+
+      // Update status
+      setConnectionStage('connection');
+      setStatusMessage('Establishing connection...');
 
       const pc = new RTCPeerConnection();
       
@@ -78,6 +127,10 @@ export default function VoiceScreen() {
       pc.addEventListener('track', (event: RTCTrackEvent) => {
         if (event.track) remoteMediaStream.current.addTrack(event.track);
       });
+
+      // Update status
+      setConnectionStage('microphone');
+      setStatusMessage('Accessing microphone...');
 
       const ms = await mediaDevices.getUserMedia({
         audio: true,
@@ -91,14 +144,27 @@ export default function VoiceScreen() {
       setLocalMediaStream(ms);
       pc.addTrack(ms.getTracks()[0]);
 
+      // Update status
+      setConnectionStage('datachannel');
+      setStatusMessage('Setting up data channel...');
+
       const dc = pc.createDataChannel('oai-events');
       setDataChannel(dc);
+
+      // Update status
+      setConnectionStage('negotiating');
+      setStatusMessage('Negotiating connection...');
 
       const offer = await pc.createOffer({});
       await pc.setLocalDescription(offer);
 
       const baseUrl = 'https://api.openai.com/v1/realtime';
       const model = 'gpt-4o-realtime-preview-2024-12-17';
+      
+      // Update status
+      setConnectionStage('connecting');
+      setStatusMessage('Connecting to AI service...');
+      
       const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
         method: 'POST',
         body: offer.sdp,
@@ -116,9 +182,22 @@ export default function VoiceScreen() {
 
       peerConnection.current = pc;
       setIsSessionActive(true);
+      
+      // Final ready status
+      setConnectionStage('ready');
+      setStatusMessage('Ready to start conversation!');
+      
+      // After a short delay, clear the status message to allow normal conversation flow
+      setTimeout(() => {
+        if (connectionStage === 'ready') {
+          setStatusMessage('');
+        }
+      }, 2000);
 
     } catch (error) {
       console.error('Failed to start session:', error);
+      setConnectionStage('error');
+      setStatusMessage('Failed to start voice session');
       Alert.alert('Error', 'Failed to start voice session');
     }
   };
@@ -135,6 +214,8 @@ export default function VoiceScreen() {
     setIsSessionActive(false);
     setDataChannel(null);
     peerConnection.current = null;
+    setConnectionStage('');
+    setStatusMessage('');
   };
 
   // Handle data channel events
@@ -266,9 +347,14 @@ export default function VoiceScreen() {
 
     try {
       setIsRecording(true);
+      setLoading(true);
+      setConnectionStage('starting');
+      setStatusMessage('Starting voice assistant...');
       await startSession();
     } catch (error) {
       console.error('Failed to start recording:', error);
+      setConnectionStage('error');
+      setStatusMessage('Failed to start recording');
       Alert.alert('Error', 'Failed to start recording');
     }
   };
@@ -278,9 +364,41 @@ export default function VoiceScreen() {
     try {
       setIsRecording(false);
       stopSession();
+      
+      // Save conversation if it has content and hasn't been saved yet
+      if (chatHistory.length > 0 && !conversationSaved) {
+        await saveConversationData();
+      }
     } catch (error) {
       console.error('Failed to stop recording:', error);
       Alert.alert('Error', 'Failed to process recording');
+    }
+  };
+
+  // Save conversation data
+  const saveConversationData = async () => {
+    try {
+      if (chatHistory.length === 0) return;
+      
+      // Get the first user message to use as a title, or use default
+      const firstUserMessage = chatHistory.find(msg => msg.type === 'user')?.message;
+      const title = firstUserMessage 
+        ? firstUserMessage.substring(0, 30) + (firstUserMessage.length > 30 ? '...' : '')
+        : 'Conversation ' + new Date().toLocaleString();
+      
+      const conversation: Conversation = {
+        id: conversationId,
+        title: title,
+        messages: chatHistory,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      await saveConversation(conversation);
+      setConversationSaved(true);
+      console.log('Conversation saved successfully');
+    } catch (error) {
+      console.error('Error saving conversation:', error);
     }
   };
 
@@ -329,18 +447,24 @@ export default function VoiceScreen() {
       // Stop WebRTC connection
       stopSession();
       
+      // Save conversation if it has content and hasn't been saved yet
+      if (chatHistory.length > 0 && !conversationSaved) {
+        await saveConversationData();
+      }
+      
       // Clear states
       setResponseText('');
       setTranscript('');
       setLoading(false);
       setEvents([]);
+      setConnectionStage('');
+      setStatusMessage('');
     } catch (error) {
       console.error('Failed to stop everything:', error);
     }
   };
 
   // Add animation scale value
-
   const pulseStyle = useAnimatedStyle(() => {
     return {
       transform: [
@@ -357,36 +481,80 @@ export default function VoiceScreen() {
       ],
     };
   });
+  
+  // Add connection stage animation
+  const getCircleColorStyle = () => {
+    if (!connectionStage) return {};
+    
+    switch(connectionStage) {
+      case 'requesting':
+      case 'audio':
+      case 'connection':
+        return { backgroundColor: 'rgba(255, 193, 7, 0.1)' };
+      case 'microphone':
+      case 'datachannel':
+      case 'negotiating':
+        return { backgroundColor: 'rgba(33, 150, 243, 0.1)' };
+      case 'connecting':
+        return { backgroundColor: 'rgba(139, 195, 74, 0.15)' };
+      case 'ready':
+        return { backgroundColor: 'rgba(139, 195, 74, 0.1)' };
+      case 'error':
+        return { backgroundColor: 'rgba(229, 57, 53, 0.1)' };
+      default:
+        return { backgroundColor: 'rgba(139, 195, 74, 0.1)' };
+    }
+  };
+  
+  const getInnerCircleColorStyle = () => {
+    if (!connectionStage) return {};
+    
+    switch(connectionStage) {
+      case 'requesting':
+      case 'audio':
+      case 'connection':
+        return { backgroundColor: 'rgba(255, 193, 7, 0.2)' };
+      case 'microphone':
+      case 'datachannel':
+      case 'negotiating':
+        return { backgroundColor: 'rgba(33, 150, 243, 0.2)' };
+      case 'connecting':
+        return { backgroundColor: 'rgba(139, 195, 74, 0.25)' };
+      case 'ready':
+        return { backgroundColor: 'rgba(139, 195, 74, 0.2)' };
+      case 'error':
+        return { backgroundColor: 'rgba(229, 57, 53, 0.2)' };
+      default:
+        return { backgroundColor: 'rgba(139, 195, 74, 0.2)' };
+    }
+  };
+  
+  const getGlowDotColorStyle = () => {
+    if (!connectionStage) return {};
+    
+    switch(connectionStage) {
+      case 'requesting':
+      case 'audio':
+      case 'connection':
+        return { backgroundColor: '#FF9800' };
+      case 'microphone':
+      case 'datachannel':
+      case 'negotiating':
+        return { backgroundColor: '#2196F3' };
+      case 'connecting':
+        return { backgroundColor: '#8BC34A' };
+      case 'ready':
+        return { backgroundColor: '#2E7D32' };
+      case 'error':
+        return { backgroundColor: '#E53935' };
+      default:
+        return { backgroundColor: '#2E7D32' };
+    }
+  };
 
   const [isChatDrawerOpen, setIsChatDrawerOpen] = useState(false);
-  const [chatHistory, setChatHistory] = useState<Array<{
-    type: 'user' | 'assistant',
-    message: string,
-    timestamp: Date
-  }>>([]);
   
   const drawerAnimation = useSharedValue(0);
-
-  // Update chat history when transcript or response changes
-  useEffect(() => {
-    if (transcript) {
-      setChatHistory(prev => [...prev, {
-        type: 'user',
-        message: transcript,
-        timestamp: new Date()
-      }]);
-    }
-  }, [transcript]);
-
-  useEffect(() => {
-    if (responseText) {
-      setChatHistory(prev => [...prev, {
-        type: 'assistant',
-        message: responseText,
-        timestamp: new Date()
-      }]);
-    }
-  }, [responseText]);
 
   const toggleChatDrawer = () => {
     const newValue = !isChatDrawerOpen;
@@ -411,6 +579,76 @@ export default function VoiceScreen() {
     }
   };
 
+  // Display a confirmation when conversation is saved
+  useEffect(() => {
+    if (conversationSaved) {
+      Alert.alert(
+        'Conversation Saved', 
+        'Your conversation has been saved successfully.', 
+        [
+          { text: 'OK', style: 'default' },
+          { 
+            text: 'View Conversations', 
+            onPress: () => router.push('/(tabs)/conversations'),
+            style: 'default'
+          }
+        ]
+      );
+    }
+  }, [conversationSaved, router]);
+
+  // Update chat history when transcript or response changes
+  useEffect(() => {
+    if (transcript) {
+      const newMessage: ConversationMessage = {
+        type: 'user',
+        message: transcript,
+        timestamp: new Date()
+      };
+      setChatHistory(prev => [...prev, newMessage]);
+    }
+  }, [transcript]);
+
+  useEffect(() => {
+    if (responseText) {
+      const newMessage: ConversationMessage = {
+        type: 'assistant',
+        message: responseText,
+        timestamp: new Date()
+      };
+      setChatHistory(prev => [...prev, newMessage]);
+    }
+  }, [responseText]);
+
+  // Add animation for status icons
+  const rotateAnimation = useSharedValue(0);
+  
+  useEffect(() => {
+    if (connectionStage && connectionStage !== 'ready' && connectionStage !== 'error') {
+      rotateAnimation.value = 0;
+      rotateAnimation.value = withRepeat(
+        withTiming(360, { duration: 2000 }),
+        -1,
+        false
+      );
+    } else {
+      rotateAnimation.value = 0;
+    }
+  }, [connectionStage]);
+  
+  const rotatingStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { rotateZ: `${rotateAnimation.value}deg` }
+      ]
+    };
+  });
+  
+  // Helper function to determine if icon should animate
+  const shouldAnimateIcon = () => {
+    return connectionStage && connectionStage !== 'ready' && connectionStage !== 'error';
+  };
+
   return (
     <LinearGradient
       colors={['#E8F3D6', '#F9F7F0']}
@@ -423,16 +661,28 @@ export default function VoiceScreen() {
             <Ionicons name="arrow-back" size={24} color="#000" />
           </Pressable>
           <Text style={styles.headerTitle}>Farm Assistant</Text>
-          <Pressable 
-            style={styles.menuButton}
-            onPress={toggleChatDrawer}
-          >
-            <Ionicons 
-              name={isChatDrawerOpen ? "close" : "chatbubble-ellipses-outline"} 
-              size={24} 
-              color="#000" 
-            />
-          </Pressable>
+          <View style={styles.headerRight}>
+            <Pressable 
+              style={styles.historyButton}
+              onPress={() => router.push('/(tabs)/conversations')}
+            >
+              <Ionicons 
+                name="time-outline" 
+                size={24} 
+                color="#000" 
+              />
+            </Pressable>
+            <Pressable 
+              style={styles.menuButton}
+              onPress={toggleChatDrawer}
+            >
+              <Ionicons 
+                name={isChatDrawerOpen ? "close" : "chatbubble-ellipses-outline"} 
+                size={24} 
+                color="#000" 
+              />
+            </Pressable>
+          </View>
         </View>
 
         {/* Overlay and Chat Drawer */}
@@ -488,17 +738,71 @@ export default function VoiceScreen() {
             <Animated.View 
               style={[
                 styles.circle,
+                getCircleColorStyle(),
                 isRecording && pulseStyle
               ]}
             >
-              <View style={styles.innerCircle}>
-                <View style={styles.glowDot} />
+              <View style={[
+                styles.innerCircle,
+                getInnerCircleColorStyle()
+              ]}>
+                <View style={[
+                  styles.glowDot,
+                  getGlowDotColorStyle()
+                ]} />
               </View>
             </Animated.View>
           </View>
 
           {/* Message Display */}
-          {responseText || loading ? (
+          {statusMessage ? (
+            <View style={styles.messageContainer}>
+              <View style={styles.statusRow}>
+                {connectionStage === 'requesting' && (
+                  <Animated.View style={shouldAnimateIcon() ? rotatingStyle : undefined}>
+                    <Ionicons name="key-outline" size={24} color="#2E7D32" style={styles.statusIcon} />
+                  </Animated.View>
+                )}
+                {connectionStage === 'audio' && (
+                  <Animated.View style={shouldAnimateIcon() ? rotatingStyle : undefined}>
+                    <Ionicons name="volume-high-outline" size={24} color="#2E7D32" style={styles.statusIcon} />
+                  </Animated.View>
+                )}
+                {connectionStage === 'connection' && (
+                  <Animated.View style={shouldAnimateIcon() ? rotatingStyle : undefined}>
+                    <Ionicons name="git-network-outline" size={24} color="#2E7D32" style={styles.statusIcon} />
+                  </Animated.View>
+                )}
+                {connectionStage === 'microphone' && (
+                  <Animated.View style={shouldAnimateIcon() ? rotatingStyle : undefined}>
+                    <Ionicons name="mic-outline" size={24} color="#2E7D32" style={styles.statusIcon} />
+                  </Animated.View>
+                )}
+                {connectionStage === 'datachannel' && (
+                  <Animated.View style={shouldAnimateIcon() ? rotatingStyle : undefined}>
+                    <Ionicons name="swap-horizontal-outline" size={24} color="#2E7D32" style={styles.statusIcon} />
+                  </Animated.View>
+                )}
+                {(connectionStage === 'negotiating' || connectionStage === 'connecting') && (
+                  <Animated.View style={shouldAnimateIcon() ? rotatingStyle : undefined}>
+                    <Ionicons name="sync-outline" size={24} color="#2E7D32" style={styles.statusIcon} />
+                  </Animated.View>
+                )}
+                {connectionStage === 'ready' && (
+                  <Ionicons name="checkmark-circle-outline" size={24} color="#2E7D32" style={styles.statusIcon} />
+                )}
+                {connectionStage === 'error' && (
+                  <Ionicons name="alert-circle-outline" size={24} color="#E53935" style={styles.statusIcon} />
+                )}
+                <Text style={styles.messageText}>
+                  {statusMessage}
+                </Text>
+              </View>
+              <Text style={styles.subText}>
+                {connectionStage === 'ready' ? 'Your AI assistant is ready!' : 'Setting up your voice assistant...'}
+              </Text>
+            </View>
+          ) : responseText || loading ? (
             <View style={styles.messageContainer}>
               <Text style={styles.messageText}>
                 {loading ? 'Processing...' : responseText}
@@ -568,6 +872,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#2E7D32',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  historyButton: {
+    padding: 8,
+    marginRight: 8,
   },
   menuButton: {
     padding: 8,
@@ -744,5 +1056,13 @@ const styles = StyleSheet.create({
   },
   assistantText: {
     color: '#333',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statusIcon: {
+    marginRight: 8,
   },
 }); 

@@ -11,11 +11,7 @@ import { Provider as PaperProvider } from 'react-native-paper';
 import { useRouter, useSegments } from 'expo-router';
 import { LanguageProvider } from '@/utils/LanguageContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import Colors from '@/constants/Colors';
-import { ClerkProvider } from '@clerk/clerk-expo';
-import { hasCompletedOnboarding } from '@/utils/OnboardingUtils';
 import * as Notifications from 'expo-notifications';
 import { registerForPushNotificationsAsync, savePushToken } from '@/utils/notifications';
 
@@ -91,20 +87,6 @@ function InitialLayout() {
     }
   };
 
-  useEffect(() => {
-    // Check if user has seen onboarding
-    async function checkOnboardingStatus() {
-      try {
-        const completed = await hasCompletedOnboarding();
-        setHasSeenOnboarding(completed);
-      } catch (error) {
-        console.error('Error reading onboarding status:', error);
-        setHasSeenOnboarding(false);
-      }
-    }
-    
-    checkOnboardingStatus();
-  }, []);
 
   useEffect(() => {
     if (!isLoaded || hasSeenOnboarding === null) return;

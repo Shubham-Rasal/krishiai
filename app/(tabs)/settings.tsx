@@ -206,7 +206,7 @@ export default function SettingsScreen() {
           </Pressable>
           
           {/* Push Notification settings */}
-          <View style={styles.menuItem}>
+          {/* <View style={styles.menuItem}>
             <MaterialCommunityIcons name="bell" size={24} color="#4CAF50" />
             <View style={styles.menuItemContent}>
               <Text style={styles.menuText}>{i18n.t('notifications') || 'Notifications'}</Text>
@@ -222,10 +222,10 @@ export default function SettingsScreen() {
               trackColor={{ false: '#767577', true: '#81c784' }}
               thumbColor={notificationsEnabled ? '#4CAF50' : '#f4f3f4'}
             />
-          </View>
+          </View> */}
           
           {/* Only show test notification button if notifications are enabled */}
-          {notificationsEnabled && (
+          {/* {notificationsEnabled && (
             <View style={styles.notificationTestContainer}>
               <Button
                 mode="outlined"
@@ -253,7 +253,7 @@ export default function SettingsScreen() {
                 {i18n.t('testServerNotificationHelp') || 'Send a test notification from the Supabase server.'}
               </Text>
             </View>
-          )}
+          )} */}
         </View>
 
         <View style={styles.section}>

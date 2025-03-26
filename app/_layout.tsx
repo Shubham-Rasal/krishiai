@@ -23,7 +23,6 @@ function InitialLayout() {
   const { isLoaded, isSignedIn, userId } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   const notificationListener = useRef<any>();
   const responseListener = useRef<any>();
 
@@ -42,12 +41,12 @@ function InitialLayout() {
     };
   }, []);
 
-  useEffect(() => {
-    // Register push token when user is signed in
-    if (isSignedIn && userId) {
-      registerPushTokenForUser(userId);
-    }
-  }, [isSignedIn, userId]);
+  // useEffect(() => {
+  //   // Register push token when user is signed in
+  //   if (isSignedIn && userId) {
+  //     registerPushTokenForUser(userId);
+  //   }
+  // }, [isSignedIn, userId]);
 
   const registerPushTokenForUser = async (userId: string) => {
     try {
@@ -88,21 +87,19 @@ function InitialLayout() {
   };
 
 
-  useEffect(() => {
-    if (!isLoaded || hasSeenOnboarding === null) return;
+    useEffect(() => {
+    if (!isLoaded) return;
 
     const inTabsGroup = segments[0] === '(tabs)';
     const inAuthGroup = segments[0] === '(auth)';
 
     // After onboarding, route based on auth status
-    if (hasSeenOnboarding === true) {
-      if (isSignedIn && !inTabsGroup) {
-        router.replace('/(tabs)/home');
-      } else if (!isSignedIn && !inAuthGroup) {
-        router.replace('/(auth)/login');
-      }
+    if (isSignedIn && !inTabsGroup) {
+      router.replace('/(tabs)/home');
+    } else if (!isSignedIn && !inAuthGroup) {
+      router.replace('/(auth)/login');
     }
-  }, [isSignedIn, segments, isLoaded, hasSeenOnboarding]);
+  }, [isSignedIn, segments, isLoaded]);
 
   return (
     <Stack>

@@ -36,6 +36,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | unde
       console.log('Failed to get push token for push notification!');
       return undefined;
     }
+    console.log('Push token granted');
     
     // Get push token from Expo
     token = (await Notifications.getExpoPushTokenAsync({

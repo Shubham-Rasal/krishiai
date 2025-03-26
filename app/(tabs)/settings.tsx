@@ -1,12 +1,13 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { List, Button, Modal, TextInput, Divider } from 'react-native-paper';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
-import { useState, useEffect } from 'react';
 import { savePreferences, getPreferences, FarmPreferences } from '@/utils/preferences';
 import { useLanguage } from '@/utils/LanguageContext';
+import { usePushNotifications } from '@/utils/notifications';
 
 export default function SettingsScreen() {
   const { signOut } = useAuth();
@@ -20,6 +21,8 @@ export default function SettingsScreen() {
   const [experienceInput, setExperienceInput] = useState('');
   const { i18n, changeLanguage, currentLanguage } = useLanguage();
   const [selectedLanguage, setSelectedLanguage] = useState(currentLanguage);
+  const { registerCurrentUser, sendLocalTestNotification, sendServerTestNotification } = usePushNotifications();
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   useEffect(() => {
     loadPreferences();
@@ -30,6 +33,9 @@ export default function SettingsScreen() {
     setPreferences(prefs);
     if (prefs.personalDetails?.experience) {
       setExperienceInput(prefs.personalDetails.experience);
+    }
+    if (prefs.notificationsEnabled !== undefined) {
+      setNotificationsEnabled(prefs.notificationsEnabled);
     }
   };
 
@@ -58,6 +64,54 @@ export default function SettingsScreen() {
     await savePreferences(updatedPreferences);
     setPreferences(updatedPreferences);
     setModalVisible(false);
+  };
+
+  const toggleNotifications = async (value: boolean) => {
+    setNotificationsEnabled(value);
+    const updatedPreferences = { ...preferences, notificationsEnabled: value };
+    await savePreferences(updatedPreferences);
+    setPreferences(updatedPreferences);
+    
+    if (value) {
+      // Register for push notifications if enabled
+      await registerCurrentUser();
+      Alert.alert(
+        i18n.t('notificationsEnabled'),
+        i18n.t('notificationsEnabledMessage')
+      );
+    }
+  };
+
+  const handleTestLocalNotification = async () => {
+    try {
+      await sendLocalTestNotification();
+      Alert.alert(
+        i18n.t('testNotificationSent') || 'Test Notification Sent',
+        i18n.t('checkNotification') || 'Check your device for the notification.'
+      );
+    } catch (error) {
+      console.error('Error sending test notification:', error);
+      Alert.alert(
+        i18n.t('error') || 'Error',
+        i18n.t('errorSendingNotification') || 'There was an error sending the notification.'
+      );
+    }
+  };
+
+  const handleTestServerNotification = async () => {
+    try {
+      await sendServerTestNotification();
+      Alert.alert(
+        i18n.t('serverNotificationSent') || 'Server Notification Sent',
+        i18n.t('checkServerNotification') || 'A notification will be sent from the server.'
+      );
+    } catch (error) {
+      console.error('Error sending server notification:', error);
+      Alert.alert(
+        i18n.t('error') || 'Error',
+        i18n.t('errorSendingServerNotification') || 'There was an error sending the server notification.'
+      );
+    }
   };
 
   const openModal = (type: 'location' | 'crops' | 'personal' | 'language' | 'experience') => {
@@ -150,24 +204,61 @@ export default function SettingsScreen() {
             </View>
             <MaterialCommunityIcons name="chevron-right" size={20} color="#4CAF50" />
           </Pressable>
-          <Pressable style={styles.menuItem}>
-            <MaterialCommunityIcons name="microphone" size={24} color="#4CAF50" />
-            <View style={styles.menuItemContent}>
-              <Text style={styles.menuText}>{i18n.t('voiceSettings')}</Text>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color="#4CAF50" />
-          </Pressable>
-          <Pressable style={styles.menuItem}>
+          
+          {/* Push Notification settings */}
+          <View style={styles.menuItem}>
             <MaterialCommunityIcons name="bell" size={24} color="#4CAF50" />
             <View style={styles.menuItemContent}>
-              <Text style={styles.menuText}>{i18n.t('notifications')}</Text>
+              <Text style={styles.menuText}>{i18n.t('notifications') || 'Notifications'}</Text>
+              <Text style={styles.menuSubText}>
+                {notificationsEnabled 
+                  ? (i18n.t('notificationsEnabled') || 'Enabled') 
+                  : (i18n.t('notificationsDisabled') || 'Disabled')}
+              </Text>
             </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color="#4CAF50" />
-          </Pressable>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={toggleNotifications}
+              trackColor={{ false: '#767577', true: '#81c784' }}
+              thumbColor={notificationsEnabled ? '#4CAF50' : '#f4f3f4'}
+            />
+          </View>
+          
+          {/* Only show test notification button if notifications are enabled */}
+          {notificationsEnabled && (
+            <View style={styles.notificationTestContainer}>
+              <Button
+                mode="outlined"
+                onPress={handleTestLocalNotification}
+                style={styles.testButton}
+                icon="bell-ring"
+                textColor="#4CAF50"
+              >
+                {i18n.t('testLocalNotification') || 'Test Local Notification'}
+              </Button>
+              <Text style={styles.notificationHelpText}>
+                {i18n.t('testLocalNotificationHelp') || 'Send a test notification from the app to your device.'}
+              </Text>
+              
+              <Button
+                mode="outlined"
+                onPress={handleTestServerNotification}
+                style={[styles.testButton, { marginTop: 16 }]}
+                icon="server"
+                textColor="#4CAF50"
+              >
+                {i18n.t('testServerNotification') || 'Test Server Notification'}
+              </Button>
+              <Text style={styles.notificationHelpText}>
+                {i18n.t('testServerNotificationHelp') || 'Send a test notification from the Supabase server.'}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{i18n.t('dataPrivacy')}</Text>
+          {/* Commenting out unimplemented features
           <Pressable style={styles.menuItem}>
             <MaterialCommunityIcons name="database" size={24} color="#4CAF50" />
             <View style={styles.menuItemContent}>
@@ -182,10 +273,13 @@ export default function SettingsScreen() {
             </View>
             <MaterialCommunityIcons name="chevron-right" size={20} color="#4CAF50" />
           </Pressable>
+          */}
+          <Text style={styles.menuSubText}>{i18n.t('comingSoon')}</Text>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{i18n.t('support')}</Text>
+          {/* Commenting out unimplemented features
           <Pressable style={styles.menuItem}>
             <MaterialCommunityIcons name="help-circle" size={24} color="#4CAF50" />
             <View style={styles.menuItemContent}>
@@ -200,6 +294,8 @@ export default function SettingsScreen() {
             </View>
             <MaterialCommunityIcons name="chevron-right" size={20} color="#4CAF50" />
           </Pressable>
+          */}
+          <Text style={styles.menuSubText}>{i18n.t('comingSoon')}</Text>
         </View>
 
         <List.Section>
@@ -221,104 +317,132 @@ export default function SettingsScreen() {
           <Divider style={styles.divider} />
         </List.Section>
 
-        <View style={styles.buttonContainer}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{i18n.t('accountActions')}</Text>
           <Button
             mode="contained"
             onPress={handleSignOut}
             style={styles.signOutButton}
             buttonColor="#ff4444"
+            icon="logout-variant"
           >
             {i18n.t('signOut')}
           </Button>
         </View>
 
+        {/* Add bottom spacing to prevent the logout button from being hidden */}
+        <View style={styles.bottomSpacing}></View>
+
         <Modal
           visible={modalVisible}
           onDismiss={() => setModalVisible(false)}
-          contentContainerStyle={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {modalType === 'location' ? i18n.t('farmLocation') : 
-               modalType === 'crops' ? i18n.t('manageCrops') : 
-               modalType === 'language' ? i18n.t('selectLanguage') : 
-               modalType === 'experience' ? i18n.t('farmingExperience') : 
-               i18n.t('personalDetails')}
-            </Text>
-            <Pressable onPress={() => setModalVisible(false)}>
-              <MaterialCommunityIcons name="close" size={24} color="#666" />
-            </Pressable>
-          </View>
-          <Divider style={styles.modalDivider} />
+          contentContainerStyle={styles.modalContainer}
+        >
+          <Text style={styles.modalTitle}>
+            {modalType === 'location' ? i18n.t('farmLocation') : 
+             modalType === 'crops' ? i18n.t('cropManagement') :
+             modalType === 'personal' ? i18n.t('personalDetails') :
+             modalType === 'experience' ? i18n.t('farmingExperience') :
+             modalType === 'language' ? i18n.t('language') : ''}
+          </Text>
           
-          {modalType === 'language' ? (
-            <View style={styles.languageOptions}>
-              <Pressable 
-                style={[styles.languageOption, selectedLanguage === 'en' && styles.selectedLanguage]} 
-                onPress={() => handleLanguageChange('en')}>
-                <MaterialCommunityIcons 
-                  name={selectedLanguage === 'en' ? "checkbox-marked-circle" : "checkbox-blank-circle-outline"} 
-                  size={24} 
-                  color={selectedLanguage === 'en' ? "#4CAF50" : "#666"} 
-                  style={styles.languageIcon}
-                />
-                <Text style={styles.languageText}>English</Text>
-              </Pressable>
-              <Pressable 
-                style={[styles.languageOption, selectedLanguage === 'hi' && styles.selectedLanguage]} 
-                onPress={() => handleLanguageChange('hi')}>
-                <MaterialCommunityIcons 
-                  name={selectedLanguage === 'hi' ? "checkbox-marked-circle" : "checkbox-blank-circle-outline"} 
-                  size={24} 
-                  color={selectedLanguage === 'hi' ? "#4CAF50" : "#666"} 
-                  style={styles.languageIcon}
-                />
-                <Text style={styles.languageText}>हिंदी (Hindi)</Text>
-              </Pressable>
-            </View>
-          ) : modalType === 'crops' ? (
+          {modalType === 'location' && (
             <TextInput
-              value={cropInput}
-              onChangeText={setCropInput}
-              placeholder={i18n.t('enterCropsCommaSeparated')}
-              style={styles.input}
               mode="outlined"
-              activeOutlineColor="#4CAF50"
-              outlineColor="#E0E0E0"
-              multiline
-            />
-          ) : modalType === 'experience' ? (
-            <TextInput
-              value={experienceInput}
-              onChangeText={setExperienceInput}
-              placeholder={i18n.t('enterYourFarmingExperience')}
-              style={styles.input}
-              mode="outlined"
-              activeOutlineColor="#4CAF50"
-              outlineColor="#E0E0E0"
-              multiline
-            />
-          ) : (
-            <TextInput
+              label={i18n.t('enterLocation')}
               value={tempInput}
               onChangeText={setTempInput}
-              placeholder={
-                modalType === 'location' ? i18n.t('enterFarmLocation') : i18n.t('enterYourName')
-              }
-              style={styles.input}
-              mode="outlined"
+              style={styles.modalInput}
+              outlineColor="#4CAF50"
               activeOutlineColor="#4CAF50"
-              outlineColor="#E0E0E0"
             />
           )}
           
-          <Button 
-            mode="contained" 
-            onPress={handleSavePreference}
-            style={styles.saveButton}
-            buttonColor="#4CAF50"
-          >
-            {i18n.t('save')}
-          </Button>
+          {modalType === 'crops' && (
+            <TextInput
+              mode="outlined"
+              label={i18n.t('enterCrops')}
+              value={cropInput}
+              onChangeText={setCropInput}
+              style={styles.modalInput}
+              placeholder={i18n.t('cropInputPlaceholder')}
+              outlineColor="#4CAF50"
+              activeOutlineColor="#4CAF50"
+            />
+          )}
+          
+          {modalType === 'personal' && (
+            <TextInput
+              mode="outlined"
+              label={i18n.t('enterName')}
+              value={tempInput}
+              onChangeText={setTempInput}
+              style={styles.modalInput}
+              outlineColor="#4CAF50"
+              activeOutlineColor="#4CAF50"
+            />
+          )}
+          
+          {modalType === 'experience' && (
+            <>
+              <TextInput
+                mode="outlined"
+                label={i18n.t('yearsOfExperience')}
+                value={experienceInput}
+                onChangeText={setExperienceInput}
+                style={styles.modalInput}
+                keyboardType="numeric"
+                outlineColor="#4CAF50"
+                activeOutlineColor="#4CAF50"
+              />
+            </>
+          )}
+          
+          {modalType === 'language' && (
+            <View style={styles.languageOptions}>
+              <Pressable 
+                style={[
+                  styles.languageOption, 
+                  selectedLanguage === 'en' && styles.languageOptionSelected
+                ]} 
+                onPress={() => handleLanguageChange('en')}
+              >
+                <Text style={[
+                  styles.languageText,
+                  selectedLanguage === 'en' && styles.languageTextSelected
+                ]}>English</Text>
+              </Pressable>
+              <Pressable 
+                style={[
+                  styles.languageOption, 
+                  selectedLanguage === 'hi' && styles.languageOptionSelected
+                ]} 
+                onPress={() => handleLanguageChange('hi')}
+              >
+                <Text style={[
+                  styles.languageText,
+                  selectedLanguage === 'hi' && styles.languageTextSelected
+                ]}>हिंदी</Text>
+              </Pressable>
+            </View>
+          )}
+          
+          <View style={styles.modalButtonsContainer}>
+            <Button 
+              mode="text" 
+              onPress={() => setModalVisible(false)}
+              textColor="#4CAF50"
+            >
+              {i18n.t('cancel')}
+            </Button>
+            <Button 
+              mode="contained" 
+              onPress={handleSavePreference}
+              buttonColor="#4CAF50"
+            >
+              {i18n.t('save')}
+            </Button>
+          </View>
         </Modal>
       </ScrollView>
     </SafeAreaView>
@@ -328,11 +452,13 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#f5f5f5',
   },
   header: {
     padding: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   title: {
     fontSize: 24,
@@ -340,107 +466,121 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   section: {
-    padding: 20,
+    marginTop: 20,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 15,
+    marginHorizontal: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
     marginBottom: 15,
-    color: '#4CAF50',
+    color: '#333',
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
-  },
-  menuText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  buttonContainer: {
-    padding: 16,
-  },
-  signOutButton: {
-    marginTop: 20,
   },
   menuItemContent: {
     flex: 1,
     marginLeft: 15,
   },
-  menuSubText: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  modalContainer: {
-    backgroundColor: 'white',
-    marginHorizontal: 20,
-    borderRadius: 12,
-    position: 'absolute',
-    top: '25%', // Center vertically
-    left: 0,
-    right: 0,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#4CAF50',
-  },
-  modalDivider: {
-    backgroundColor: '#E0E0E0',
-    height: 1,
-  },
-  input: {
-    margin: 16,
-    backgroundColor: 'white',
-  },
-  languageOptions: {
-    margin: 16,
-  },
-  languageOption: {
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  languageIcon: {
-    marginRight: 10,
-  },
-  selectedLanguage: {
-    backgroundColor: '#E8F5E9',
-  },
-  languageText: {
+  menuText: {
     fontSize: 16,
     color: '#333',
   },
-  saveButton: {
-    margin: 16,
-    borderRadius: 8,
+  menuSubText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
   },
   listSubheader: {
     fontSize: 16,
-    color: '#4CAF50',
-    fontWeight: '600',
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
   },
   listItem: {
     paddingVertical: 8,
   },
-  divider: {
-    backgroundColor: '#f0f0f0',
-    height: 1,
+  signOutButton: {
+    marginTop: 10,
+  },
+  bottomSpacing: {
+    height: 80,
+  },
+  modalContainer: {
+    backgroundColor: 'white',
+    padding: 20,
+    margin: 20,
+    borderRadius: 10,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#333',
+    textAlign: 'center',
+  },
+  modalInput: {
+    marginBottom: 20,
+    backgroundColor: '#f9f9f9',
+  },
+  modalButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  languageOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginVertical: 20,
+  },
+  languageOption: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  languageOptionSelected: {
+    backgroundColor: '#4CAF50',
+  },
+  languageText: {
+    fontSize: 16,
+    color: '#4CAF50',
+  },
+  languageTextSelected: {
+    color: '#fff',
+  },
+  notificationTestContainer: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    alignItems: 'center',
+  },
+  testButton: {
+    borderColor: '#4CAF50',
+    borderWidth: 1,
+  },
+  notificationHelpText: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 10,
+    paddingHorizontal: 20,
   },
 }); 

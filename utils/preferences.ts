@@ -9,6 +9,7 @@ export interface FarmPreferences {
     experience?: string;
   };
   language?: string;
+  notificationsEnabled?: boolean;
 }
 
 const PREFERENCES_KEY = 'farm_preferences';

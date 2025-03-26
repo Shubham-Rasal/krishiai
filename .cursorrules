@@ -9,4 +9,3 @@ Here are some pieces of information you need to know about this project:
 management and execution
 • Common commands are in the scripts section of the `package.json` file
   • To build the project fresh on the iOS simulator use `npx expo run:android` and make sure to prebuild the project first with `npx expo prebuild` since this is an expo-dev-client project
-  • To start the project without building run `npx expo start`

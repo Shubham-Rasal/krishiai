@@ -62,7 +62,9 @@
     "react-native-webrtc-web-shim": "^1.0.7",
     "react-native-webview": "13.12.5",
     "zod": "^3.24.2",
-    "expo-camera": "~16.0.18"
+    "expo-camera": "~16.0.18",
+    "expo-notifications": "~0.29.14",
+    "expo-device": "~7.0.2"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

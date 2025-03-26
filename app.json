@@ -11,7 +11,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bluequbit.krishiai",
-      "bitcode": false
+      "bitcode": false,
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +28,9 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.WAKE_LOCK",
-        "android.permission.BLUETOOTH"
+        "android.permission.BLUETOOTH",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
       ]
     },
     "web": {
@@ -59,6 +62,16 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos for crop analysis.",
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for crop analysis."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#4CAF50",
+          "sounds": [
+            "./assets/sounds/notification.wav"
+          ]
+        }
       ]
     ],
     "experiments": {
@@ -71,6 +84,13 @@
       "eas": {
         "projectId": "d96e42cd-861e-4c1b-a53f-b99800992e87"
       }
+    },
+    "notification": {
+      "icon": "./assets/images/notification-icon.png",
+      "color": "#4CAF50",
+      "androidMode": "default",
+      "androidCollapsedTitle": "KrishiAI",
+      "iosDisplayInForeground": true
     }
   }
 }

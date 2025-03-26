@@ -37,6 +37,10 @@ const translations: Translations = {
     noCropsAdded: 'No crops added',
     noEmail: 'No email',
     noName: 'No name',
+    accountActions: 'Account Actions',
+    comingSoon: 'Coming Soon',
+    farmingExperience: 'Farming Experience',
+    enterYourFarmingExperience: 'Enter your farming experience',
   },
   hi: {
     settings: 'सेटिंग्स',
@@ -68,6 +72,10 @@ const translations: Translations = {
     noCropsAdded: 'कोई फसल नहीं जोड़ी गई',
     noEmail: 'कोई ईमेल नहीं',
     noName: 'कोई नाम नहीं',
+    accountActions: 'खाता कार्रवाई',
+    comingSoon: 'जल्द आ रहा है',
+    farmingExperience: 'खेती का अनुभव',
+    enterYourFarmingExperience: 'अपना खेती का अनुभव दर्ज करें',
   },
 };
 

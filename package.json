@@ -61,7 +61,8 @@
     "react-native-webrtc": "^124.0.5",
     "react-native-webrtc-web-shim": "^1.0.7",
     "react-native-webview": "13.12.5",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "expo-camera": "~16.0.18"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

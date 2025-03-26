@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as FileSystem from 'expo-file-system';
+import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { analyzeCropDisease } from '../../services/ai/disease-detector';
 import Animated, { 
   useAnimatedStyle, 
@@ -21,7 +22,7 @@ import Animated, {
 const { width, height } = Dimensions.get('window');
 
 // Feature flags
-const CROP_SCAN_ENABLED = false; // Set to false for production
+const CROP_SCAN_ENABLED = true; // Set to true to enable the feature
 const DEV_TEST_ENABLED = false; // Toggle this during development to test the feature
 
 // Add the interface for IngredientBadge props
@@ -53,6 +54,8 @@ export default function CropScanScreen() {
   const [scanFailed, setScanFailed] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [flashEnabled, setFlashEnabled] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<any>(null);
   const [result, setResult] = useState<{
     prediction: string;
     confidence: number;
@@ -118,20 +121,32 @@ export default function CropScanScreen() {
   };
 
   const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Sorry, we need camera permissions to make this work!');
-      return;
-    }
+    if (cameraRef.current && permission?.granted) {
+      try {
+        const photo = await cameraRef.current.takePictureAsync();
+        setImage(photo.uri);
+        handleAnalysis(photo.uri);
+      } catch (error) {
+        console.error('Error taking picture:', error);
+        Alert.alert('Error', 'Failed to take picture. Please try again.');
+      }
+    } else {
+      // Fallback to image picker if camera not available
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Sorry, we need camera permissions to make this work!');
+        return;
+      }
 
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 1,
-    });
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 1,
+      });
 
-    if (!result.canceled) {
-      setImage(result.assets[0].uri);
-      handleAnalysis(result.assets[0].uri);
+      if (!result.canceled) {
+        setImage(result.assets[0].uri);
+        handleAnalysis(result.assets[0].uri);
+      }
     }
   };
 
@@ -212,8 +227,10 @@ export default function CropScanScreen() {
           <TouchableOpacity style={styles.backButton} onPress={resetScan}>
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Crop Disease Scanner</Text>
-          <View style={{ width: 40 }} />
+          <Text style={styles.headerTitle}>Scan Your Plant</Text>
+          <TouchableOpacity style={styles.notificationButton}>
+            <Ionicons name="notifications-outline" size={24} color="#333" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.scannerWrapper}>
@@ -257,12 +274,58 @@ export default function CropScanScreen() {
               </View>
             ) : (
               <>
-                <View style={styles.scanFrame}>
-                  <View style={styles.scannerFrameSquare} />
-                </View>
-                <View style={styles.instructionContainer}>
-                  <Text style={styles.scannerInstructionText}>Position crop leaf in frame</Text>
-                </View>
+                {permission?.granted ? (
+                  <View style={styles.camera}>
+                    <CameraView
+                      ref={cameraRef}
+                      style={styles.cameraView}
+                      facing="back"
+                      enableTorch={flashEnabled}
+                    >
+                      <View style={styles.scanFrameCorners}>
+                        <View style={[styles.corner, styles.topLeft]} />
+                        <View style={[styles.corner, styles.topRight]} />
+                        <View style={[styles.corner, styles.bottomLeft]} />
+                        <View style={[styles.corner, styles.bottomRight]} />
+                      </View>
+                    </CameraView>
+                  </View>
+                ) : (
+                  <>
+                    {!permission ? (
+                      <View style={styles.cameraSimulator}>
+                        <Image 
+                          source={require('../../assets/images/demo-plant.png')} 
+                          style={styles.demoPlantImage}
+                          resizeMode="contain"
+                        />
+                        <View style={styles.scanFrameCorners}>
+                          <View style={[styles.corner, styles.topLeft]} />
+                          <View style={[styles.corner, styles.topRight]} />
+                          <View style={[styles.corner, styles.bottomLeft]} />
+                          <View style={[styles.corner, styles.bottomRight]} />
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.permissionContainer}>
+                        <Text style={styles.permissionText}>We need camera permission</Text>
+                        <TouchableOpacity 
+                          style={styles.permissionButton} 
+                          onPress={requestPermission}
+                        >
+                          <Text style={styles.permissionButtonText}>Grant Permission</Text>
+                        </TouchableOpacity>
+                        <View style={styles.demoPlantContainer}>
+                          <Image 
+                            source={require('../../assets/images/demo-plant.png')} 
+                            style={styles.demoPlantImage}
+                            resizeMode="contain"
+                          />
+                        </View>
+                      </View>
+                    )}
+                  </>
+                )}
               </>
             )}
           </View>
@@ -271,25 +334,15 @@ export default function CropScanScreen() {
         <View style={styles.scannerFooter}>
           <View style={styles.actionButtonsRow}>
             <TouchableOpacity style={styles.actionIconButton} onPress={pickImage}>
-              <FontAwesome5 name="images" size={22} color="#2E7D32" />
+              <Ionicons name="images-outline" size={20} color="#2E7D32" />
             </TouchableOpacity>
             
             <TouchableOpacity style={styles.mainCaptureButton} onPress={takePhoto}>
               <View style={styles.captureButtonInner} />
             </TouchableOpacity>
             
-            <TouchableOpacity 
-              style={[
-                styles.actionIconButton, 
-                flashEnabled && styles.actionIconButtonActive
-              ]} 
-              onPress={toggleFlash}
-            >
-              <FontAwesome5 
-                name={flashEnabled ? "bolt" : "bolt-slash"} 
-                size={22} 
-                color={flashEnabled ? "#2E7D32" : "#666"} 
-              />
+            <TouchableOpacity style={styles.actionIconButton} onPress={toggleFlash}>
+              <Ionicons name={flashEnabled ? "flash" : "flash-off"} size={20} color="#2E7D32" />
             </TouchableOpacity>
           </View>
         </View>
@@ -434,8 +487,7 @@ export default function CropScanScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-    paddingBottom: 16,
+    backgroundColor: '#FFFFFF',
   },
   // Coming Soon styles
   comingSoonContainer: {
@@ -463,16 +515,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
+    paddingHorizontal: 20,
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     color: '#333',
+    textAlign: 'center',
   },
   backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+  },
+  notificationButton: {
     width: 40,
     height: 40,
     alignItems: 'center',
@@ -483,35 +543,77 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
   },
   scannerContainer: {
-    width: width * 0.9,
-    height: width * 0.9,
-    borderRadius: 20,
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#2E7D32', // Match the screenshot exactly
+    backgroundColor: '#f8f9fa',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  scanFrame: {
-    width: width * 0.7,
-    height: width * 0.7,
     position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  scanFrameCorners: {
+    position: 'absolute',
+    width: '90%',
+    height: '90%',
+    zIndex: 10,
+    top: '5%',
+    left: '5%',
+  },
+  corner: {
+    position: 'absolute',
+    width: 25,
+    height: 25,
+    borderColor: '#2E7D32',
+    borderWidth: 2.5,
+  },
+  topLeft: {
+    top: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 6,
+  },
+  topRight: {
+    top: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderBottomWidth: 0,
+    borderTopRightRadius: 6,
+  },
+  bottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderTopWidth: 0,
+    borderBottomLeftRadius: 6,
+  },
+  bottomRight: {
+    bottom: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderTopWidth: 0,
+    borderBottomRightRadius: 6,
+  },
+  demoPlantContainer: {
+    width: '75%',
+    height: '75%',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1,
   },
-  scannerFrameSquare: {
-    width: 80,
-    height: 80,
-    borderWidth: 4,
-    borderColor: '#FFFFFF',
-    backgroundColor: 'transparent',
+  demoPlantImage: {
+    width: '100%',
+    height: '100%',
   },
   capturedImageContainer: {
     width: '100%',
@@ -776,38 +878,29 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#fff',
   },
-  instructionContainer: {
-    position: 'absolute',
-    bottom: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 30,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  scannerInstructionText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-    textAlign: 'center',
+  scannerFooter: {
+    padding: 16,
+    paddingBottom: 30,
+    backgroundColor: '#fff',
   },
   actionButtonsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 45,
   },
   actionIconButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#F2F2F2',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f8f9fa',
     justifyContent: 'center',
     alignItems: 'center',
   },
   mainCaptureButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
@@ -820,22 +913,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   captureButtonInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#2E7D32',
-  },
-  actionIconButtonActive: {
-    backgroundColor: '#E8F5E9',
-    borderWidth: 1,
-    borderColor: '#2E7D32',
-  },
-  scannerFooter: {
-    padding: 20,
-    paddingBottom: 40,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
   },
   ingredientBadge: {
     position: 'absolute',
@@ -861,5 +942,48 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     textAlign: 'center',
+  },
+  camera: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 12,
+  },
+  cameraView: {
+    flex: 1,
+    position: 'relative',
+  },
+  cameraSimulator: {
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  permissionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  permissionText: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 16,
+  },
+  permissionButton: {
+    padding: 16,
+    backgroundColor: '#2E7D32',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  permissionButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#fff',
   },
 });

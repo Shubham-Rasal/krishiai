@@ -87,9 +87,9 @@ const LoginScreen = () => {
       </View>
 
       {/* Skip Button */}
-      <Pressable style={styles.skipButton} onPress={() => router.push('/(tabs)/home')}>
+      {/* <Pressable style={styles.skipButton} onPress={() => router.push('/(tabs)/home')}>
         <Text style={styles.skipText}>Skip</Text>
-      </Pressable>
+      </Pressable> */}
     </View>
   );
 };

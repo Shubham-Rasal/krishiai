@@ -589,7 +589,7 @@ export default function VoiceScreen() {
           { text: 'OK', style: 'default' },
           { 
             text: 'View Conversations', 
-            onPress: () => router.push('/(tabs)/conversations'),
+            onPress: () => router.push('/(tabs)/settings?showChatHistory=true'),
             style: 'default'
           }
         ]
@@ -664,7 +664,7 @@ export default function VoiceScreen() {
           <View style={styles.headerRight}>
             <Pressable 
               style={styles.historyButton}
-              onPress={() => router.push('/(tabs)/conversations')}
+              onPress={() => router.push('/(tabs)/settings?showChatHistory=true')}
             >
               <Ionicons 
                 name="time-outline" 

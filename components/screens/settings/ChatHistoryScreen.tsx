@@ -3,32 +3,23 @@ import { View, Text, StyleSheet, Pressable, Alert, ScrollView, RefreshControl, M
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { format } from 'date-fns';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Conversation, ConversationMessage, getConversations, deleteConversation } from '@/utils/conversations';
 
-export default function ConversationsScreen() {
+interface ChatHistoryScreenProps {
+  onClose: () => void;
+}
+
+export default function ChatHistoryScreen({ onClose }: ChatHistoryScreenProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
 
   // Load conversations when screen is mounted
   useEffect(() => {
     loadConversations();
   }, []);
-
-  // Check if we need to open a specific conversation
-  useEffect(() => {
-    if (id && conversations.length > 0) {
-      const conversation = conversations.find(c => c.id === id);
-      if (conversation) {
-        viewConversationDetails(conversation);
-      }
-    }
-  }, [id, conversations]);
 
   // Fetch conversations from storage
   const loadConversations = async () => {
@@ -103,7 +94,7 @@ export default function ConversationsScreen() {
       <SafeAreaView style={styles.safeArea}>
         {/* Header */}
         <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={onClose}>
             <Ionicons name="arrow-back" size={24} color="#000" />
           </Pressable>
           <Text style={styles.headerTitle}>Saved Conversations</Text>

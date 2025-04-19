@@ -584,15 +584,7 @@ export default function VoiceScreen() {
     if (conversationSaved) {
       Alert.alert(
         'Conversation Saved', 
-        'Your conversation has been saved successfully.', 
-        [
-          { text: 'OK', style: 'default' },
-          { 
-            text: 'View Conversations', 
-            onPress: () => router.push('/(tabs)/settings?showChatHistory=true'),
-            style: 'default'
-          }
-        ]
+        'Your conversation has been saved successfully.'
       );
     }
   }, [conversationSaved, router]);
@@ -662,16 +654,7 @@ export default function VoiceScreen() {
           </Pressable>
           <Text style={styles.headerTitle}>Farm Assistant</Text>
           <View style={styles.headerRight}>
-            <Pressable 
-              style={styles.historyButton}
-              onPress={() => router.push('/(tabs)/settings?showChatHistory=true')}
-            >
-              <Ionicons 
-                name="time-outline" 
-                size={24} 
-                color="#000" 
-              />
-            </Pressable>
+
             <Pressable 
               style={styles.menuButton}
               onPress={toggleChatDrawer}

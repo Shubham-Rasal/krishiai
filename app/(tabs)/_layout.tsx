@@ -28,7 +28,6 @@ function MaterialTabBarIcon(props: {
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const backgroundColor = colorScheme === 'dark' ? '#121212' : '#FFFFFF';
-  const tintColor = Colors[colorScheme ?? 'light'].tint;
   
   // Shadow styles based on theme
   const shadowStyle = colorScheme === 'dark' 

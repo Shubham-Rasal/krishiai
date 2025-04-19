@@ -7,14 +7,11 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Modal, Portal, Provider } from 'react-native-paper';
 import { Settings } from '@/components/screens/settings';
-
-interface Task {
-  id: string;
-  title: string;
-  time: string;
-  status: 'On-Progress' | 'Not-Started';
-  fieldCode: string;
-}
+import MarketPriceTicker from '@/components/MarketPriceTicker';
+import NewsFeed from '@/components/NewsFeed';
+import NewsArticleDetail from '@/components/NewsArticleDetail';
+import { fetchMarketPrices, MarketPrice } from '@/utils/marketData';
+import { useLanguage } from '@/utils/LanguageContext';
 
 interface Field {
   id: string;
@@ -26,36 +23,50 @@ interface Field {
   activityCount: number;
 }
 
+interface NewsArticle {
+  id: string;
+  title: string;
+  summary: string;
+  imageUrl: string;
+  source: string;
+  date: string;
+  url: string;
+}
+
+// Default market prices as fallback
+const DEFAULT_MARKET_PRICES: MarketPrice[] = [
+  {
+    id: 'default-1',
+    name: 'Rice',
+    price: '₹2,450/q',
+    change: '2.5%',
+    isUp: true
+  },
+  {
+    id: 'default-2',
+    name: 'Wheat',
+    price: '₹2,100/q',
+    change: '1.8%',
+    isUp: true
+  },
+  {
+    id: 'default-3',
+    name: 'Corn',
+    price: '₹1,850/q',
+    change: '0.7%',
+    isUp: false
+  }
+];
+
 export default function HomeScreen() {
   const { user } = useUser();
   const router = useRouter();
+  const { i18n } = useLanguage();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [settingsVisible, setSettingsVisible] = useState(false);
-  
-  // Mock data for tasks
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: '1',
-      title: 'Watering of fields',
-      time: '7:30 AM',
-      status: 'On-Progress',
-      fieldCode: 'CD5'
-    },
-    {
-      id: '2',
-      title: 'Planting of fields',
-      time: '8:00 AM',
-      status: 'Not-Started',
-      fieldCode: 'CD5'
-    },
-    {
-      id: '3',
-      title: 'Watering of fields',
-      time: '8:30 AM',
-      status: 'Not-Started',
-      fieldCode: 'CD7'
-    }
-  ]);
+  const [marketPrices, setMarketPrices] = useState<MarketPrice[]>(DEFAULT_MARKET_PRICES);
+  const [pricesLoading, setPricesLoading] = useState(true);
+  const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
   
   // Mock data for fields
   const [fields, setFields] = useState<Field[]>([
@@ -95,8 +106,26 @@ export default function HomeScreen() {
       setCurrentTime(new Date());
     }, 60000);
     
+    // Load market prices
+    loadMarketPrices();
+    
     return () => clearInterval(timer);
   }, []);
+  
+  const loadMarketPrices = async () => {
+    try {
+      setPricesLoading(true);
+      const prices = await fetchMarketPrices();
+      if (prices && prices.length > 0) {
+        setMarketPrices(prices);
+      }
+    } catch (error) {
+      console.error('Error loading market prices:', error);
+      // Keep the default prices if there's an error
+    } finally {
+      setPricesLoading(false);
+    }
+  };
   
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
@@ -120,6 +149,14 @@ export default function HomeScreen() {
   const handleCloseSettings = () => {
     setSettingsVisible(false);
   };
+  
+  const handleArticlePress = (article: NewsArticle) => {
+    setSelectedArticle(article);
+  };
+  
+  const handleCloseArticle = () => {
+    setSelectedArticle(null);
+  };
 
   return (
     <Provider>
@@ -130,8 +167,17 @@ export default function HomeScreen() {
           contentContainerStyle={styles.settingsModal}
         >
           <Settings onClose={handleCloseSettings} isModal={true} />
-          
         </Modal>
+        
+        {selectedArticle && (
+          <Modal
+            visible={!!selectedArticle}
+            onDismiss={handleCloseArticle}
+            contentContainerStyle={styles.articleModal}
+          >
+            <NewsArticleDetail article={selectedArticle} onClose={handleCloseArticle} />
+          </Modal>
+        )}
       </Portal>
       
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
@@ -160,7 +206,6 @@ export default function HomeScreen() {
                     <Ionicons name="settings-outline" size={22} color="white" style={styles.settingsIcon} />
                   </View>
                 </Pressable>
-                
               </View>
             </View>
             
@@ -191,34 +236,18 @@ export default function HomeScreen() {
           </LinearGradient>
         </ImageBackground>
         
-        {/* Tasks section */}
-        <View style={styles.tasksContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tasksScroll}>
-            {tasks.map((task) => (
-              <View key={task.id} style={styles.taskCard}>
-                <Text style={styles.taskTime}>{task.time}</Text>
-                <Text style={styles.taskTitle}>{task.title} {task.fieldCode}</Text>
-                <View style={[
-                  styles.taskStatusBadge, 
-                  task.status === 'On-Progress' ? styles.statusProgress : styles.statusNotStarted
-                ]}>
-                  <Text style={styles.taskStatusText}>{task.status}</Text>
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
+        {/* Market Price Ticker */}
+        <MarketPriceTicker prices={marketPrices} />
         
-        {/* Fields section */}
-        <View style={styles.fieldsSection}>
+        {/* Fields Section */}
+        {/* <View style={styles.fieldsSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Our agriculture field</Text>
+            <Text style={styles.sectionTitle}>{i18n.t('ourAgricultureField') || 'Our agriculture field'}</Text>
             <Pressable>
-              <Text style={styles.viewMapText}>View Map</Text>
+              <Text style={styles.viewMapText}>{i18n.t('viewMap') || 'View Map'}</Text>
             </Pressable>
           </View>
           
-          {/* Field cards */}
           {fields.map((field) => (
             <View key={field.id} style={styles.fieldCard}>
               <ImageBackground 
@@ -250,8 +279,10 @@ export default function HomeScreen() {
               </View>
             </View>
           ))}
-        </View>
+        </View> */}
         
+        {/* News Feed */}
+        <NewsFeed onArticlePress={handleArticlePress} isNestedInScrollView={true} />
       </ScrollView>
     </Provider>
   );
@@ -260,98 +291,74 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: '#f5f5f5',
   },
   contentContainer: {
-    paddingBottom: 80,
+    paddingBottom: 24,
   },
   headerBackground: {
-    height: 400,
+    height: 220,
     width: '100%',
   },
   backgroundImageStyle: {
-    opacity: 0.85, // Make the image lighter
-    backgroundColor: '#000',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   gradientOverlay: {
     flex: 1,
-    padding: 16,
-    paddingTop: 40,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 30,
   },
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 4,
   },
   locationText: {
     color: 'white',
     marginLeft: 4,
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '500',
   },
   profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
   },
   settingsButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
+    marginRight: 8,
   },
   settingsIconContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    padding: 6,
   },
   settingsIcon: {
-    textShadowColor: 'rgba(255, 255, 255, 0.5)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 3,
-  },
-  
-  greeting: {
-    color: 'white',
-    fontSize: 16,
-    marginBottom: 8,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    
   },
   weatherContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginTop: 50,
+  },
+  greeting: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
   },
   temperature: {
     color: 'white',
-    fontSize: 48,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    fontSize: 36,
+    fontWeight: '700',
+    marginBottom: 4,
   },
   weatherDetailRow: {
     flexDirection: 'row',
@@ -366,9 +373,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 12,
     marginLeft: 4,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
   },
   weatherRight: {
     alignItems: 'flex-end',
@@ -376,89 +380,24 @@ const styles = StyleSheet.create({
   weatherCondition: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginBottom: 6,
   },
   conditionText: {
     color: 'white',
     marginLeft: 4,
-    fontSize: 13,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    fontSize: 12,
   },
   dateText: {
     color: 'white',
     fontSize: 12,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  tasksContainer: {
-    marginTop: -40,
-    paddingLeft: 16,
-  },
-  tasksScroll: {
-    flexDirection: 'row',
-  },
-  taskCard: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 16,
-    marginRight: 12,
-    width: 150,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 5,
-    elevation: 6,
-    borderWidth: 0.5,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  taskTime: {
-    fontSize: 14,
-    color: '#000',
-    marginBottom: 4,
-  },
-  taskTitle: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#000',
-    marginBottom: 12,
-  },
-  taskStatusBadge: {
-    borderRadius: 20,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    alignSelf: 'flex-start',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  statusProgress: {
-    backgroundColor: '#e3f2e3',
-  },
-  statusNotStarted: {
-    backgroundColor: '#f0f0f0',
-  },
-  taskStatusText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#333',
   },
   fieldsSection: {
-    padding: 16,
-    marginTop: 20,
+    marginTop: 24,
+    marginHorizontal: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -469,47 +408,44 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: '#333',
   },
   viewMapText: {
-    fontSize: 13,
-    color: '#0f772f',
-    fontWeight: '500',
+    fontSize: 12,
+    color: '#1976D2',
   },
   fieldCard: {
     backgroundColor: 'white',
-    borderRadius: 10,
-    overflow: 'hidden',
+    borderRadius: 12,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 8,
-    borderWidth: 0.5,
-    borderColor: 'rgba(0,0,0,0.05)',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    overflow: 'hidden',
   },
   fieldImage: {
+    height: 100,
     width: '100%',
-    height: 120,
   },
   fieldImageStyle: {
-    opacity: 0.85,
+    
   },
   fieldImageOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    height: '100%',
+    width: '100%',
   },
   fieldContent: {
-    padding: 12,
+    padding: 16,
   },
   fieldName: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: '#333',
     marginBottom: 4,
   },
   fieldCoordinates: {
@@ -518,85 +454,41 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   fieldStatusBadge: {
-    backgroundColor: '#e3f2e3',
-    borderRadius: 20,
-    paddingVertical: 4,
+    backgroundColor: '#E8F5E9',
     paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
     alignSelf: 'flex-start',
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
   },
   fieldStatusText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#333',
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#2E7D32',
   },
   fieldStats: {
     flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   fieldStat: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
   },
   fieldStatText: {
     fontSize: 12,
     color: '#666',
     marginLeft: 4,
   },
-  navFooter: {
-    position: 'absolute',
-    bottom: 16,
-    left: 16,
-    right: 16,
-    backgroundColor: 'white',
-    borderRadius: 30,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 10,
-    borderWidth: 0.5,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  navButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-  },
-  activeNavButton: {
-    backgroundColor: '#0f772f',
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  activeNavText: {
-    color: 'white',
-    fontWeight: '500',
-    fontSize: 14,
-    marginLeft: 4,
-  },
   settingsModal: {
+    flex: 1,
     backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    marginTop: 'auto',
-    height: '90%',
-    marginBottom: 0,
-    marginHorizontal: 0,
+    margin: 0,
+    borderRadius: 0,
+  },
+  articleModal: {
+    flex: 1,
+    backgroundColor: 'white',
+    margin: 0,
+    borderRadius: 0,
   },
 }); 

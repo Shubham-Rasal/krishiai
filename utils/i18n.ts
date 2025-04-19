@@ -53,6 +53,19 @@ const translations: Translations = {
     yourCrops: 'Your Crops',
     cancel: 'Cancel',
     edit: 'Edit',
+    // News feed and market ticker translations
+    marketPrices: 'Market Prices',
+    latestNews: 'Latest News',
+    loadingNews: 'Loading News...',
+    retry: 'Retry',
+    viewArticle: 'View Article',
+    readMore: 'Read More',
+    shareArticle: 'Share Article',
+    cropPrices: 'Crop Prices',
+    priceUpdate: 'Price Update',
+    // Home page specific translations
+    ourAgricultureField: 'Our agriculture field',
+    viewMap: 'View Map',
   },
   hi: {
     settings: 'सेटिंग्स',
@@ -100,6 +113,19 @@ const translations: Translations = {
     yourCrops: 'आपकी फसलें',
     cancel: 'रद्द करें',
     edit: 'संपादित करें',
+    // News feed and market ticker translations
+    marketPrices: 'बाजार मूल्य',
+    latestNews: 'ताजा समाचार',
+    loadingNews: 'समाचार लोड हो रहा है...',
+    retry: 'पुनः प्रयास करें',
+    viewArticle: 'लेख देखें',
+    readMore: 'और पढ़ें',
+    shareArticle: 'लेख साझा करें',
+    cropPrices: 'फसल मूल्य',
+    priceUpdate: 'मूल्य अपडेट',
+    // Home page specific translations
+    ourAgricultureField: 'हमारा कृषि क्षेत्र',
+    viewMap: 'नक्शा देखें',
   },
 };
 

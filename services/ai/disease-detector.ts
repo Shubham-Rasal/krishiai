@@ -4,7 +4,7 @@ const API_URL = Platform.select({
   // Use localhost for iOS simulator
   ios: 'http://localhost:5000',
   // Use 10.0.2.2 for Android emulator (special alias to host loopback interface)
-  android: 'https://274c-160-20-123-9.ngrok-free.app',
+  android: 'http://43.204.227.45:5000',
   default: 'http://localhost:5000'
 });
 

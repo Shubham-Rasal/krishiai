@@ -740,7 +740,7 @@ const styles = StyleSheet.create({
   detailsContainer: {
     flex: 1,
     padding: 16,
-    paddingBottom: 80,
+    paddingBottom: 120,
   },
   detailsHeader: {
     flexDirection: 'row',
@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
     backgroundColor: '#fff',
-    marginBottom: 16,
+    marginBottom: 90,
   },
   secondaryButton: {
     flex: 1,
@@ -864,7 +864,7 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: '#2E7D32',
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: 'center', 
     marginLeft: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -882,6 +882,7 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 30,
     backgroundColor: '#fff',
+    marginBottom: 90,
   },
   actionButtonsRow: {
     flexDirection: 'row',
